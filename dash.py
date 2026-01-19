@@ -241,7 +241,8 @@ if page == "OCR Add Contacts":
                 updated.to_csv(CONTACTS_DB, index=False)
 
                 st.success(f"{len(temp_entries)} contacts saved")
-                st.experimental_rerun()
+                st.rerun()
+
 
 # ─────────────────────────────────────────────────────────────
 # VIEW CONTACTS
