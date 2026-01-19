@@ -181,7 +181,14 @@ def generate_all_mr_schedule():
 def mr_kanban():
     st.subheader("My Activities")
 
-    df = pd.read_csv(MASTER_SCHEDULE)
+   if not os.path.exists(MASTER_SCHEDULE):
+    st.warning(
+        "Schedule not generated yet. Please contact Admin."
+    )
+    return
+
+df = pd.read_csv(MASTER_SCHEDULE)
+
     date = st.date_input("Select Date")
 
     df = df[
