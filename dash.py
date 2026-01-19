@@ -261,6 +261,196 @@ elif page == "View Contacts":
 # ─────────────────────────────────────────────────────────────
 # GENERATE SCHEDULE (UNCHANGED PLACEHOLDER)
 # ─────────────────────────────────────────────────────────────
+def generate_schedule(selected_mr_id):
+    activities = pd.read_csv(ACTIVITIES_PATH)
+    activities['date'] = pd.to_datetime(activities['date'], errors='coerce')
+
+    contacts = pd.read_csv(CONTACTS_PATH)
+    users = pd.read_csv(USERS_PATH)
+    contacts['Zone'] = contacts['Zone'].str.upper()
+
+    current_date = pd.to_datetime('2025-12-31')
+
+    latest_per_customer = activities.sort_values('date').groupby('customer_id').tail(1)[['customer_id', 'referrals_count', 'visit_count']]
+    contacts = contacts.merge(latest_per_customer, left_on='Contact_id', right_on='customer_id', how='left')
+    contacts['referrals_count'] = contacts['referrals_count'].fillna(0).astype(int)
+    contacts['visit_count'] = contacts['visit_count'].fillna(0).astype(int)
+    contacts['current_status'] = contacts['referrals_count'].apply(predict_status)
+
+    last_visit = activities.groupby('customer_id')['date'].max().reset_index()
+    last_visit['days_since_last_visit'] = (current_date - last_visit['date']).dt.days
+    contacts = contacts.merge(last_visit[['customer_id', 'days_since_last_visit']], left_on='Contact_id', right_on='customer_id', how='left')
+    contacts['days_since_last_visit'] = contacts['days_since_last_visit'].fillna(365)
+
+    recent_visits = activities[activities['date'] > current_date - timedelta(days=90)]
+    visit_count_90 = recent_visits.groupby('customer_id').size().reset_index(name='visit_count_last_90')
+    contacts = contacts.merge(visit_count_90, left_on='Contact_id', right_on='customer_id', how='left')
+    contacts['visit_count_last_90'] = contacts['visit_count_last_90'].fillna(0)
+
+    def rule_priority(row):
+        score = 0
+        if row['current_status'] == 'Unaware': score += 5
+        elif row['current_status'] == 'Exploring': score += 3
+        elif row['current_status'] == 'Engaged': score += 2
+        if row['days_since_last_visit'] > 60: score += 4
+        if row['visit_count'] < 3: score += 3
+        if row['Segment'] in ['Peripheral Supporter', 'Silent Referrer']: score += 2
+        return score
+
+    contacts['rule_score'] = contacts.apply(rule_priority, axis=1)
+    # Encode using PRE-FITTED encoders
+    contacts['Segment_encoded'] = contacts['Segment'].map(
+        lambda x: le_segment.transform([x])[0] if x in le_segment.classes_ else 0
+    )
+
+    contacts['Status_encoded'] = contacts['current_status'].map(
+        lambda x: le_status.transform([x])[0] if x in le_status.classes_ else 0
+    )
+
+    features = [
+        'Segment_encoded',
+        'Status_encoded',
+        'referrals_count',
+        'visit_count',
+        'days_since_last_visit',
+        'visit_count_last_90',
+        'Latitude',
+        'Longitude'
+    ]
+
+    X = contacts[features]
+
+# ✅ Predict using PRE-TRAINED model
+    contacts['xgb_score'] = xgb_model.predict(X)
+
+# Hybrid priority (same as notebook)
+    contacts['priority_score'] = (
+        0.5 * contacts['rule_score'] +
+        0.5 * contacts['xgb_score']
+    )
+
+    contacts['priority_score'] = 0.5 * contacts['rule_score'] + 0.5 * contacts['xgb_score']
+
+    if selected_mr_id:
+        mr_zone = users[users['mr_id'] == selected_mr_id]['zone'].iloc[0].upper()
+        contacts = contacts[contacts['Zone'] == mr_zone]
+
+    contacts = contacts.sort_values('priority_score', ascending=False)
+
+    predicted_activities = []
+    activity_types = ['Doctor Visit', 'Phone Call', 'Follow-up', 'Presentation']
+    type_probs = {
+        'Unaware': [0.4, 0.3, 0.2, 0.1],
+        'Exploring': [0.3, 0.3, 0.3, 0.1],
+        'Engaged': [0.2, 0.2, 0.3, 0.3],
+        'Champion': [0.1, 0.1, 0.2, 0.6]
+    }
+    duration_ranges = {
+        'Unaware': range(30, 46, 5),
+        'Exploring': range(25, 41, 5),
+        'Engaged': range(20, 36, 5),
+        'Champion': range(15, 31, 5)
+    }
+    status_transition = {'Unaware': 'Exploring', 'Exploring': 'Engaged', 'Engaged': 'Champion', 'Champion': 'Champion'}
+
+    activity_id_counter = 1
+    start_date = current_date + timedelta(days=1)
+    end_date = current_date + timedelta(days=30)
+
+    mr_info = users[users['mr_id'] == selected_mr_id]
+    if mr_info.empty:
+        st.error("MR not found")
+        return pd.DataFrame()
+
+    mr_id = selected_mr_id
+    team = mr_info['team'].iloc[0]
+    zone = mr_info['zone'].iloc[0]
+    start_lat = mr_info['starting_latitude'].iloc[0]
+    start_lon = mr_info['starting_longitude'].iloc[0]
+
+    for day in pd.date_range(start=start_date, end=end_date):
+        if day.weekday() >= 5: continue
+
+        daily_pool = contacts.sample(frac=0.1).sort_values('priority_score', ascending=False).head(8)
+
+        current_time = dt.datetime.combine(day.date(), dt.time(9, 0))
+        current_lat, current_lon = start_lat, start_lon
+        previous_locality = 'Home'
+
+        for _, cust in daily_pool.iterrows():
+            dist, dur = get_travel_distance(current_lat, current_lon, cust.Latitude, cust.Longitude)
+            current_time += timedelta(minutes=int(dur))
+
+            probs = type_probs.get(cust.current_status, [0.25]*4)
+            act_type = np.random.choice(activity_types, p=probs)
+
+            duration_min = int(np.random.choice(duration_ranges.get(cust.current_status, range(20,36,5))))
+
+            start_str = current_time.strftime('%H:%M')
+            end_time = current_time + timedelta(minutes=duration_min)
+            end_str = end_time.strftime('%H:%M')
+
+            gap_days = cust.days_since_last_visit
+            reason_parts = []
+            if gap_days > 90: reason_parts.append(f"Long gap ({int(gap_days)} days)")
+            if cust.current_status == 'Unaware': reason_parts.append("Unaware - needs intro")
+            if cust.Segment in ['Peripheral Supporter', 'Silent Referrer']: reason_parts.append("Growth segment")
+            priority_reason = "; ".join(reason_parts) or "Maintenance"
+
+            talking_points = {
+                'Unaware': "Introduce hospital specialties & benefits",
+                'Exploring': "Share success stories & referral process",
+                'Engaged': "Discuss collaboration opportunities",
+                'Champion': "Thank for referrals & explore joint activities"
+            }.get(cust.current_status, "General follow-up")
+
+            last_date_str = (current_date - timedelta(days=gap_days)).strftime('%b %d, %Y') if gap_days < 365 else "Never visited"
+
+            is_high_value = 'Yes' if cust.referrals_count > 10 else 'No'
+
+            predicted_activities.append({
+                'activity_id': f"ACT_{str(activity_id_counter).zfill(7)}",
+                'mr_id': mr_id,
+                'team': team,
+                'zone': zone,
+                'customer_id': cust.Contact_id,
+                'customer_status': cust.current_status,
+                'activity_type': act_type,
+                'locality': cust.Locality,
+                'date': day.date(),
+                'start_time': start_str,
+                'end_time': end_str,
+                'duration_min': duration_min,
+                'Latitude': cust.Latitude,
+                'Longitude': cust.Longitude,
+                'travel_km': dist,
+                'travel_min': dur,
+                'expected_next_status': status_transition.get(cust.current_status, 'Champion'),
+                'priority_reason': priority_reason,
+                'suggested_talking_points': talking_points,
+                'last_visit_date': last_date_str,
+                'total_referrals_so_far': cust.referrals_count,
+                'travel_from_previous': previous_locality,
+                'is_high_value': is_high_value
+            })
+
+            activity_id_counter += 1
+            current_time = end_time
+            current_lat, current_lon = cust.Latitude, cust.Longitude
+            previous_locality = cust.Locality
+
+    return pd.DataFrame(predicted_activities)
+    
+elif page == "View Past Activities":
+    st.subheader("Past Activities")
+    df = pd.read_csv(ACTIVITIES_PATH)
+    st.dataframe(df)
+
+elif page == "View Users":
+    st.subheader("MR Users")
+    df = pd.read_csv(USERS_PATH)
+    st.dataframe(df)
+
 elif page == "Generate Schedule":
     st.subheader("Generate MR Schedule")
     users = pd.read_csv(USERS_PATH)
