@@ -102,12 +102,12 @@ def login():
         if st.button("Login"):
             st.session_state["role"] = "MR"
             st.session_state["mr_id"] = mr
-            st.experimental_rerun()
+            st.rerun()
 
     else:
         if st.button("Login as Admin"):
             st.session_state["role"] = "ADMIN"
-            st.experimental_rerun()
+            st.rerun()
 
 # ─────────────────────────────────────────────
 # SCHEDULE GENERATION (ALL MRs)
