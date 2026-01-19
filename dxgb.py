@@ -82,7 +82,7 @@ PHONE_PATTERN = re.compile(r'^\+91\s?\d{5}\s?\d{5}$|^\d{10}$')
 EMAIL_PATTERN = re.compile(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$')
 
 # ─── Page Config & Styling ──────────────────────────────────────────────
-st.set_page_config(page_title="MR Dashboard - Yash", layout="wide")
+st.set_page_config(page_title="MR Dashboard", layout="wide")
 
 st.markdown("""
     <style>
@@ -542,7 +542,7 @@ elif page == "View Past Activities":
 elif page == "Generate Schedule":
     st.subheader("Generate MR Schedule")
     users = pd.read_csv(USERS_PATH)
-    mr_list = ["All"] + users['mr_id'].tolist()
+    mr_list = users['mr_id'].tolist()
     selected_mr = st.selectbox("Select MR", mr_list)
 
     if st.button("Generate Schedule"):
