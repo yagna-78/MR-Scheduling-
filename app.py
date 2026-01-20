@@ -18,8 +18,7 @@ from xgboost import XGBRegressor
 # CONFIG
 # ─────────────────────────────────────────────
 st.set_page_config("MR CRM Dashboard", layout="wide")
-st.write("Looking for contacts at:", CONTACTS_DB)
-st.write("File exists:", os.path.exists(CONTACTS_DB))
+
 
 CONTACTS_DB = "Contacts.csv"
 USERS_PATH = "User_Master.csv"
@@ -28,6 +27,8 @@ MASTER_SCHEDULE = "predicted_schedule_all_mrs_jan_2026.csv"
 
 OSRM_BASE_URL = "http://router.project-osrm.org/route/v1/driving/"
 
+st.write("Looking for contacts at:", CONTACTS_DB)
+st.write("File exists:", os.path.exists(CONTACTS_DB))
 # OCR binary
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
