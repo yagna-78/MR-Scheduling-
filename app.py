@@ -139,24 +139,25 @@ def generate_all_mr_schedule():
     today = pd.to_datetime("2025-12-31")
     behavior = (
         activities
+        .dropna(subset=["customer_id", "date"])
         .sort_values("date")
         .groupby("customer_id")
         .agg(
             last_visit_date=("date", "max"),
             first_visit_date=("date", "min"),
-            visit_count=("date", "count")
+            visit_count_hist=("date", "count")
         )
         .reset_index()
     )
     behavior["days_since_last_visit"] = (
         today - behavior["last_visit_date"]
     ).dt.days
-    
     behavior["avg_visit_gap"] = (
         (behavior["last_visit_date"] - behavior["first_visit_date"])
         .dt.days
-        / behavior["visit_count"].clip(lower=1)
+        / behavior["visit_count_hist"].clip(lower=1)
     )
+
 
 
     result = []
