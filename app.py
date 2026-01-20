@@ -42,16 +42,21 @@ def load_ml():
     le_status = joblib.load("status_encoder.pkl")
     return model, le_segment, le_status
 
+
 xgb_model, le_segment, le_status = load_ml()
 
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
 def predict_status(ref):
-    if ref == 0: return "Unaware"
-    elif 1 <= ref <= 3: return "Exploring"
-    elif 4 <= ref <= 10: return "Engaged"
+    if ref == 0:
+        return "Unaware"
+    elif 1 <= ref <= 3:
+        return "Exploring"
+    elif 4 <= ref <= 10:
+        return "Engaged"
     return "Champion"
+
 
 def get_travel_distance(lat1, lon1, lat2, lon2):
     try:
@@ -60,8 +65,8 @@ def get_travel_distance(lat1, lon1, lat2, lon2):
         data = r.json()
         if data.get("code") == "Ok":
             route = data["routes"][0]
-            return round(route["distance"]/1000,2), round(route["duration"]/60,1)
-    except:
+            return round(route["distance"] / 1000, 2), round(route["duration"] / 60, 1)
+    except Exception:
         pass
     return 5.0, 15.0
 
@@ -72,10 +77,11 @@ def preprocess_image(img):
     g = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
     g = cv2.bilateralFilter(g, 9, 75, 75)
     t = cv2.adaptiveThreshold(
-        g,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,31,2
+        g, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY, 31, 2
     )
     return Image.fromarray(t)
+
 
 def extract_text(img):
     data = pytesseract.image_to_data(
@@ -84,7 +90,7 @@ def extract_text(img):
         config="--oem 3 --psm 4"
     )
     return " ".join(
-        w for w,c in zip(data["text"], data["conf"])
+        w for w, c in zip(data["text"], data["conf"])
         if w.strip() and int(c) > 50
     )
 
@@ -103,22 +109,22 @@ def login():
             st.session_state["role"] = "MR"
             st.session_state["mr_id"] = mr
             st.rerun()
-
     else:
         if st.button("Login as Admin"):
             st.session_state["role"] = "ADMIN"
             st.rerun()
 
 # ─────────────────────────────────────────────
-# SCHEDULE GENERATION (ALL MRs)
+# SCHEDULE GENERATION (ADMIN)
 # ─────────────────────────────────────────────
 def generate_all_mr_schedule():
     users = pd.read_csv(USERS_PATH)
     contacts = pd.read_csv(CONTACTS_DB)
     activities = pd.read_csv(HIST_ACTIVITIES)
-    activities["date"] = pd.to_datetime(activities["date"], errors="coerce")
 
+    activities["date"] = pd.to_datetime(activities["date"], errors="coerce")
     today = pd.to_datetime("2025-12-31")
+
     result = []
     act_id = 1
 
@@ -127,9 +133,14 @@ def generate_all_mr_schedule():
             contacts["Zone"].str.upper() == mr["zone"].upper()
         ].copy()
 
-        latest = activities.sort_values("date").groupby("customer_id").tail(1)
+        latest = (
+            activities.sort_values("date")
+            .groupby("customer_id")
+            .tail(1)
+        )
+
         mr_contacts = mr_contacts.merge(
-            latest[["customer_id","referrals_count","visit_count"]],
+            latest[["customer_id", "referrals_count", "visit_count"]],
             left_on="Contact_id",
             right_on="customer_id",
             how="left"
@@ -137,27 +148,31 @@ def generate_all_mr_schedule():
 
         mr_contacts["current_status"] = mr_contacts["referrals_count"].apply(predict_status)
 
-        mr_contacts["Segment_encoded"] = mr_contacts["Segment"].map(
+        mr_contacts["Segment_encoded"] = mr_contacts["Segment"].apply(
             lambda x: le_segment.transform([x])[0] if x in le_segment.classes_ else 0
         )
-        mr_contacts["Status_encoded"] = mr_contacts["current_status"].map(
+
+        mr_contacts["Status_encoded"] = mr_contacts["current_status"].apply(
             lambda x: le_status.transform([x])[0] if x in le_status.classes_ else 0
         )
 
-        feats = mr_contacts[
-            ["Segment_encoded","Status_encoded","referrals_count","visit_count"]
+        features = mr_contacts[
+            ["Segment_encoded", "Status_encoded", "referrals_count", "visit_count"]
         ]
-        mr_contacts["priority"] = xgb_model.predict(feats)
+
+        mr_contacts["priority"] = xgb_model.predict(features)
         mr_contacts = mr_contacts.sort_values("priority", ascending=False)
 
         start = today + timedelta(days=1)
         end = today + timedelta(days=30)
 
         for d in pd.date_range(start, end):
-            if d.weekday() >= 5: continue
-            daily = mr_contacts.head(8)
+            if d.weekday() >= 5:
+                continue
 
-            time = dt.datetime.combine(d.date(), dt.time(9,0))
+            daily = mr_contacts.head(8)
+            time = dt.datetime.combine(d.date(), dt.time(9, 0))
+
             for _, c in daily.iterrows():
                 result.append({
                     "activity_id": f"ACT_{act_id:07d}",
@@ -166,9 +181,9 @@ def generate_all_mr_schedule():
                     "activity_type": "Doctor Visit",
                     "customer_id": c["Contact_id"],
                     "customer_status": c["current_status"],
-                    "locality": c["Locality"],
+                    "locality": c.get("Locality", ""),
                     "start_time": time.strftime("%H:%M"),
-                    "end_time": (time+timedelta(minutes=30)).strftime("%H:%M")
+                    "end_time": (time + timedelta(minutes=30)).strftime("%H:%M")
                 })
                 time += timedelta(minutes=45)
                 act_id += 1
@@ -187,43 +202,23 @@ def mr_kanban():
 
     df = pd.read_csv(MASTER_SCHEDULE)
 
-    date = st.date_input("Select Date")
+    selected_date = st.date_input("Select Date")
 
     df = df[
         (df["mr_id"] == st.session_state["mr_id"]) &
-        (pd.to_datetime(df["date"]).dt.date == date)
+        (pd.to_datetime(df["date"]).dt.date == selected_date)
     ]
 
     cols = st.columns(3)
+
     for col, title in zip(cols, ["Planned", "In Progress", "Completed"]):
         with col:
             st.markdown(f"### {title}")
             for _, r in df.iterrows():
                 st.info(
-                    f"""{r['activity_type']}
-Customer: {r['customer_id']}
-{r['start_time']} - {r['end_time']}"""
-                )
-
-
-df = pd.read_csv(MASTER_SCHEDULE)
-
-    date = st.date_input("Select Date")
-
-    df = df[
-        (df["mr_id"] == st.session_state["mr_id"]) &
-        (pd.to_datetime(df["date"]).dt.date == date)
-    ]
-
-    cols = st.columns(3)
-    for col,title in zip(cols,["Planned","In Progress","Completed"]):
-        with col:
-            st.markdown(f"### {title}")
-            for _,r in df.iterrows():
-                st.info(
-                    f"""{r['activity_type']}
-Customer: {r['customer_id']}
-{r['start_time']} - {r['end_time']}"""
+                    f"{r['activity_type']}\n"
+                    f"Customer: {r['customer_id']}\n"
+                    f"{r['start_time']} - {r['end_time']}"
                 )
 
 # ─────────────────────────────────────────────
@@ -231,35 +226,51 @@ Customer: {r['customer_id']}
 # ─────────────────────────────────────────────
 def view_contacts():
     df = pd.read_csv(CONTACTS_DB)
+
     if st.session_state["role"] == "MR":
         users = pd.read_csv(USERS_PATH)
-        zone = users[users["mr_id"] == st.session_state["mr_id"]]["zone"].iloc[0]
+        zone = users.loc[
+            users["mr_id"] == st.session_state["mr_id"], "zone"
+        ].iloc[0]
         df = df[df["Zone"].str.upper() == zone.upper()]
+
     st.dataframe(df)
 
 # ─────────────────────────────────────────────
-# OCR ADD
+# OCR ADD CONTACT
 # ─────────────────────────────────────────────
 def add_contact_ocr():
     st.subheader("Add Contact via OCR")
-    files = st.file_uploader("Upload card", type=["jpg","png"], accept_multiple_files=True)
 
-    if not files: return
+    files = st.file_uploader(
+        "Upload visiting cards",
+        type=["jpg", "png"],
+        accept_multiple_files=True
+    )
+
+    if not files:
+        return
 
     base = pd.read_csv(CONTACTS_DB)
 
     for f in files:
         img = Image.open(f)
-        txt = extract_text(preprocess_image(img))
+        processed = preprocess_image(img)
+        text = extract_text(processed)
+
         st.image(img, width=200)
-        name = st.text_input("Name", txt[:30], key=f.name)
+
+        name = st.text_input("Name", value=text[:30], key=f.name)
 
         if st.button(f"Save {f.name}"):
-            base = pd.concat([base, pd.DataFrame([{
-                "Contact_id": f"CONT_{uuid.uuid4().hex[:8]}",
-                "Contact_name": name,
-                "Zone": "West"
-            }])])
+            base = pd.concat([
+                base,
+                pd.DataFrame([{
+                    "Contact_id": f"CONT_{uuid.uuid4().hex[:8]}",
+                    "Contact_name": name,
+                    "Zone": "West"
+                }])
+            ])
 
     base.to_csv(CONTACTS_DB, index=False)
 
@@ -272,9 +283,9 @@ if "role" not in st.session_state:
 
 with st.sidebar:
     if st.session_state["role"] == "ADMIN":
-        page = st.radio("Menu", ["Generate Schedule","Contacts"])
+        page = st.radio("Menu", ["Generate Schedule", "Contacts"])
     else:
-        page = st.radio("Menu", ["Kanban","Contacts","Add Contact"])
+        page = st.radio("Menu", ["Kanban", "Contacts", "Add Contact"])
 
 if page == "Generate Schedule":
     generate_all_mr_schedule()
