@@ -182,10 +182,10 @@ def mr_kanban():
     st.subheader("My Activities")
 
    if not os.path.exists(MASTER_SCHEDULE):
-    st.warning(
-        "Schedule not generated yet. Please contact Admin."
-    )
-    return
+       st.warning(
+           "Schedule not generated yet. Please contact Admin."
+       )
+       return
 
 df = pd.read_csv(MASTER_SCHEDULE)
 
