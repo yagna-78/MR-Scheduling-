@@ -18,6 +18,8 @@ from xgboost import XGBRegressor
 # CONFIG
 # ─────────────────────────────────────────────
 st.set_page_config("MR CRM Dashboard", layout="wide")
+st.write("Looking for contacts at:", CONTACTS_DB)
+st.write("File exists:", os.path.exists(CONTACTS_DB))
 
 CONTACTS_DB = "Contacts.csv"
 USERS_PATH = "User_Master.csv"
