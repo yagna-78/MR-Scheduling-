@@ -181,11 +181,30 @@ def generate_all_mr_schedule():
 def mr_kanban():
     st.subheader("My Activities")
 
-   if not os.path.exists(MASTER_SCHEDULE):
-       st.warning(
-           "Schedule not generated yet. Please contact Admin."
-       )
-       return
+    if not os.path.exists(MASTER_SCHEDULE):
+        st.warning("Schedule not generated yet. Please contact Admin.")
+        return
+
+    df = pd.read_csv(MASTER_SCHEDULE)
+
+    date = st.date_input("Select Date")
+
+    df = df[
+        (df["mr_id"] == st.session_state["mr_id"]) &
+        (pd.to_datetime(df["date"]).dt.date == date)
+    ]
+
+    cols = st.columns(3)
+    for col, title in zip(cols, ["Planned", "In Progress", "Completed"]):
+        with col:
+            st.markdown(f"### {title}")
+            for _, r in df.iterrows():
+                st.info(
+                    f"""{r['activity_type']}
+Customer: {r['customer_id']}
+{r['start_time']} - {r['end_time']}"""
+                )
+
 
 df = pd.read_csv(MASTER_SCHEDULE)
 
