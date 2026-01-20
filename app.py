@@ -194,16 +194,7 @@ def generate_all_mr_schedule():
         mr_contacts["avg_visit_gap"] = mr_contacts["avg_visit_gap"].fillna(
             mr_contacts["avg_visit_gap"].median()
         )
-        MODEL_FEATURES = [
-            "Segment_encoded",
-            "Status_encoded",
-            "referrals_count",
-            "visit_count",
-            "days_since_last_visit",
-            "avg_visit_gap"
-        ]
-        features = mr_contacts[MODEL_FEATURES]
-        mr_contacts["priority"] = xgb_model.predict(features)
+       
 
 
         mr_contacts["current_status"] = mr_contacts["referrals_count"].apply(predict_status)
@@ -215,12 +206,18 @@ def generate_all_mr_schedule():
         mr_contacts["Status_encoded"] = mr_contacts["current_status"].apply(
             lambda x: le_status.transform([x])[0] if x in le_status.classes_ else 0
         )
-
-        features = mr_contacts[
-            ["Segment_encoded", "Status_encoded", "referrals_count", "visit_count"]
+        MODEL_FEATURES = [
+            "Segment_encoded",
+            "Status_encoded",
+            "referrals_count",
+            "visit_count",
+            "days_since_last_visit",
+            "avg_visit_gap"
         ]
-
+        features = mr_contacts[MODEL_FEATURES]
         mr_contacts["priority"] = xgb_model.predict(features)
+        mr_contacts = mr_contacts.sort_values("priority", ascending=False)
+
         mr_contacts = mr_contacts.sort_values("priority", ascending=False)
 
         start = today + timedelta(days=1)
