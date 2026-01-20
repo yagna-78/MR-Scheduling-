@@ -31,6 +31,15 @@ tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
+#safe read csv
+def safe_read_csv(path, required=True):
+    if not os.path.exists(path):
+        if required:
+            st.error(f"Required file missing: {path}")
+            st.stop()
+        return pd.DataFrame()
+    return pd.read_csv(path)
+
 # ─────────────────────────────────────────────
 # LOAD ML
 # ─────────────────────────────────────────────
@@ -118,9 +127,10 @@ def login():
 # SCHEDULE GENERATION (ADMIN)
 # ─────────────────────────────────────────────
 def generate_all_mr_schedule():
-    users = pd.read_csv(USERS_PATH)
-    contacts = pd.read_csv(CONTACTS_DB)
-    activities = pd.read_csv(HIST_ACTIVITIES)
+    users = safe_read_csv(USERS_PATH)
+    contacts = safe_read_csv(CONTACTS_DB)
+    activities = safe_read_csv(HIST_ACTIVITIES)
+
 
     activities["date"] = pd.to_datetime(activities["date"], errors="coerce")
     today = pd.to_datetime("2025-12-31")
