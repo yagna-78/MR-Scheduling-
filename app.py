@@ -137,6 +137,27 @@ def generate_all_mr_schedule():
 
     activities["date"] = pd.to_datetime(activities["date"], errors="coerce")
     today = pd.to_datetime("2025-12-31")
+    behavior = (
+        activities
+        .sort_values("date")
+        .groupby("customer_id")
+        .agg(
+            last_visit_date=("date", "max"),
+            first_visit_date=("date", "min"),
+            visit_count=("date", "count")
+        )
+        .reset_index()
+    )
+    behavior["days_since_last_visit"] = (
+        today - behavior["last_visit_date"]
+    ).dt.days
+    
+    behavior["avg_visit_gap"] = (
+        (behavior["last_visit_date"] - behavior["first_visit_date"])
+        .dt.days
+        / behavior["visit_count"].clip(lower=1)
+    )
+
 
     result = []
     act_id = 1
@@ -158,6 +179,31 @@ def generate_all_mr_schedule():
             right_on="customer_id",
             how="left"
         ).fillna(0)
+        mr_contacts = mr_contacts.merge(
+            behavior[
+            ["customer_id", "days_since_last_visit", "avg_visit_gap"]
+            ],
+            left_on="Contact_id",
+            right_on="customer_id",
+            how="left"
+        )
+        mr_contacts["days_since_last_visit"] = mr_contacts["days_since_last_visit"].fillna(
+            mr_contacts["days_since_last_visit"].median()
+        )
+        mr_contacts["avg_visit_gap"] = mr_contacts["avg_visit_gap"].fillna(
+            mr_contacts["avg_visit_gap"].median()
+        )
+        MODEL_FEATURES = [
+            "Segment_encoded",
+            "Status_encoded",
+            "referrals_count",
+            "visit_count",
+            "days_since_last_visit",
+            "avg_visit_gap"
+        ]
+        features = mr_contacts[MODEL_FEATURES]
+        mr_contacts["priority"] = xgb_model.predict(features)
+
 
         mr_contacts["current_status"] = mr_contacts["referrals_count"].apply(predict_status)
 
