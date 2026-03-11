@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # MR Portal 🏥
 
 > A full-stack Medical Representative scheduling and management system utilizing hybrid AI algorithms and real-time routing to optimize daily visit plans.
@@ -171,9 +171,3 @@ curl -X GET "http://localhost:8000/schedule/daily/MR_W1_1/2023-10-25" \
 
 *(Insert screenshots highlighting the Map Dashboard, Kanban Task Board, Reports View, and Admin Dataset Inspector here to provide visual context).*
 
----
-*Architected for scale. Built for efficiency.*
-=======
-# MR-Scheduling-
-MR Portal is a web platform that helps manage and plan the daily work of Medical Representatives. It allows admins to generate visit schedules while MRs track doctor meetings, activities, and routes in one place. With dashboards, maps, and reports, it makes field operations more organized and efficient.
->>>>>>> a3a7c3a658c9e529a62ca2093ec4f565390c8f39
