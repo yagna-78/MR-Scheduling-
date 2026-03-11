@@ -166,8 +166,3 @@ Easily retrieve the granular schedule for a specific MR programmatically:
 curl -X GET "http://localhost:8000/schedule/daily/MR_W1_1/2023-10-25" \
      -H "Authorization: Bearer <YOUR_JWT_TOKEN>"
 ```
-
-### Application Outputs (Placeholder)
-
-*(Insert screenshots highlighting the Map Dashboard, Kanban Task Board, Reports View, and Admin Dataset Inspector here to provide visual context).*
-
