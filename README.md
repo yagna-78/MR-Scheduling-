@@ -1,9 +1,9 @@
 
-# MR Portal 🏥
+# MR Portal 
 
 > A full-stack Medical Representative scheduling and management system utilizing hybrid AI algorithms and real-time routing to optimize daily visit plans.
 
-## 📖 Project Overview
+## Project Overview
 
 ### The Problem
 
@@ -17,7 +17,7 @@ MR Portal was built to automate and optimize this complex scheduling process. By
 
 A pharmaceutical or medical device company assigns zones to its Medical Representatives. Using MR Portal, an admin can generate a full month's schedule for all MRs with a single click. The system automatically prioritizes the most valuable doctors, groups visits geographically, considers real-world traffic and road distances, and optimizes the MR's workday within standard business hours.
 
-## ✨ Key Features
+## Key Features
 
 - **Hybrid AI Scheduling Algorithm:** Combines rule-based business scoring with an XGBoost machine learning model to prioritize contacts based on engagement status, past visits, and spatial patterns.
 - **Smart Route Optimization:** Integrates with the Open Source Routing Machine (OSRM) to calculate realistic road-distance and drive time.
@@ -25,7 +25,7 @@ A pharmaceutical or medical device company assigns zones to its Medical Represen
 - **Comprehensive Reporting Engine:** Generates detailed compliance, travel, and customer behavior reports with one-click CSV export capabilities.
 - **Role-Based Access Control:** Distinct workflows featuring tailored dashboards for MRs (execution) and Admins (schedule generation, analytics, and data inspection).
 
-## 🏗️ System Architecture
+## System Architecture
 
 The overarching system architecture dictates a modern, decoupled client-server model:
 
@@ -34,7 +34,7 @@ The overarching system architecture dictates a modern, decoupled client-server m
 - **Database (Data Layer):** Supabase (PostgreSQL) acts as the primary data store. Strict Row-Level Security policies ensure safe and scalable data isolation across central tables (`users`, `contacts`, `activities`, and `master_schedule`).
 - **External Dependencies:** XGBoost handles predictive ML scoring and OSRM API provides spatial routing logic.
 
-## 💻 Technical Stack
+## Technical Stack
 
 **Programming Languages:** Python, JavaScript, SQL
 
@@ -59,7 +59,7 @@ The overarching system architecture dictates a modern, decoupled client-server m
 - XGBoost & Scikit-learn (Machine Learning scoring)
 - OSRM API (Road-distance Routing)
 
-## 🧠 AI / ML Details
+## AI / ML Details
 
 The intelligence of the platform is driven by a highly orchestrated **9-step scheduling pipeline** that relies on a hybrid scoring system:
 
@@ -68,7 +68,7 @@ The intelligence of the platform is driven by a highly orchestrated **9-step sch
 - **Training Pipeline:** A deterministic rule-based score (awarding points for neglected contacts, strategic referral segments, etc.) is quantified first. The XGBoost model is then trained on-the-fly utilizing these rules as labels, allowing it to seamlessly learn non-linear interactions and spatial proximity phenomena that flat rules might ignore.
 - **Evaluation & Optimization:** The final priority score is a **50/50 fusion** of the rule-based score and the XGBoost prediction. Top-tier targets are sequenced using OSRM to validate that physical travel times strictly align with standard 10:00 AM to 7:00 PM operational hours.
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 mr-project/
@@ -90,7 +90,7 @@ mr-project/
 └── README.md
 ```
 
-## 🚀 Installation Guide
+## Installation Guide
 
 ### Prerequisites
 
@@ -140,7 +140,7 @@ npm run dev
 
 The frontend will initialize and be available at `http://localhost:5173`.
 
-## 💡 Usage
+## Usage
 
 ### Generating Schedules (Admin Workflow)
 
